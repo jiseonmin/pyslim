@@ -1,0 +1,133 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyslim"
+dynamic = ["version"]
+description = "Manipulate tree sequences produced by SLiM."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Peter Ralph", email = "petrel.harp@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+keywords = ["tree sequences", "tskit"]
+requires-python = ">=3.11"
+dependencies = [
+    "msprime>=1.4.3",
+    "tskit>=1.0.3",
+    "numpy",
+]
+
+[project.urls]
+homepage = "https://github.com/tskit-dev/pyslim"
+repository = "https://github.com/tskit-dev/pyslim"
+"Bug Reports" = "https://github.com/tskit-dev/pyslim/issues"
+
+[tool.setuptools]
+packages = ["pyslim"]
+include-package-data = true
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+
+[dependency-groups]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist",
+    "filelock",
+    "msprime>=1.4.3",
+    "tskit>=1.0.3",
+    "pandas",
+    "frozendict",
+    "scipy",
+]
+
+docs = [
+    "jupyter-book<2",
+    "matplotlib",
+    "msprime>=1.4.3",
+    "tskit>=1.0.3",
+    "pandas",
+    "plotnine",
+    # https://github.com/sphinx-doc/sphinx-argparse/issues/97
+    "sphinx-argparse<0.6",
+    "sphinx-issues",
+]
+
+lint = [
+    "ruff==0.15.1",
+    "prek==0.3.3",
+    "zizmor==1.26.1",
+]
+
+packaging = [
+    "twine",
+    "validate-pyproject[all]",
+]
+
+dev = [
+    {include-group = "docs"},
+    {include-group = "lint"},
+    {include-group = "test"},
+    {include-group = "packaging"},
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 89
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "W", "I", "N", "UP", "A", "PT"]
+
+ignore = [
+    "A001", "A002", "RUF",
+    "B905", #Don't add strict=False to zips (B905)
+    "N806", "N802", "N803", # Various nags about uppercase vars
+    "UP032", # Don't upgrade to f strings
+    "PT011", # pytest.raises(ValueError)` is too broad
+    "PT030", # `pytest.warns(Warning)` is too broad, set the `match`
+    "E722", # Do not use bare `except`
+    "PT006", # Wrong type passed to first argument of `pytest.mark.parametrize`
+    "PT031", # `pytest.warns()` block should contain a single
+    "F841", # Local variable is assigned to but never used
+    "B007", # Loop control variable `j` not used within loop body
+    "B028", # No explicit `stacklevel` keyword argument found
+    "B904", # Within an `except` clause, raise exceptions with `raise
+    "E712", # Avoid equality comparisons to `False`;
+    "PT018",  # Assertion should be broken down into multiple parts
+    "E501", # Line too long
+    "F821", # Undefined name
+	"F401", # unused import
+    "F405", # `slim_file_version` may be undefined, or defined from star imports
+    "E721", # Use `is` and `is not` for type comparisons, or `isinstance()`
+]
+
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["tstrait"]
+known-third-party = [
+  "msprime",
+  "tskit",
+  "pytest",
+  "numpy",
+]

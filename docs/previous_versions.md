@@ -16,7 +16,7 @@ kernelspec:
 import pyslim, tskit, msprime
 
 ts = tskit.load("example_sim.trees")
-tables = ts.tables
+tables = ts.dump_tables()
 ```
 
 
@@ -24,6 +24,122 @@ tables = ts.tables
 
 
 # Migrating from previous versions of pyslim
+
+## 1.2
+
+Release 1.2 goes along with SLiM v6, which introduces support for traits.
+It also changes the format for storing mutation metadata: now this is stored
+in top-level metadata, and the SLiM mutation IDs are now stored in mutation metadata.
+These mutation IDs are also still saved by SLiM as a comma-separated string to the
+derived state of each mutation.
+
+1. Each time python evaluates ``ts.metadata`` (e.g., using ``ts.metadata["SLiM"]``)
+a new copy of the metadata dict is decoded and returned. In large SLiM simulations,
+this can take seconds, so we should avoid doing it many times. Furthermore, a number
+of pyslim functions need to look up information from metadata under the hood.
+See [](sec_metadata_using_top_level) for more discussion and examples.
+In particular:
+
+    - The method {func}`.node_is_vacant` necessarily uses metadata and acts
+      only on a single node. This method is now deprecated;
+      use {func}`.nodes_vacant` instead.
+
+    - Some pyslim methods will accept a pre-extracted metadata dictionary
+      as an optional ``ts_metadata`` argument; see [](sec_metadata_using_top_level).
+      Furthermore, {func}`.is_current_version` now accepts top-level metadata directly
+      as an alternative to the tree sequence.
+
+2. If you are using `msprime` to generate mutations, you need to use
+{class}`msprime.SLiMv6MutationModel` instead of {class}`msprime.SLiMMutationModel`.
+You also now need to use {func}`.add_mutation_metadata` after generating
+mutations to add the information about these that SLiM expects to top-level
+metadata. For instance:
+```{code-cell}
+next_id = pyslim.next_slim_mutation_id(ts)
+ts = pyslim.add_mutation_metadata(
+        msprime.sim_mutations(
+           ts,
+           rate=1e-8,
+           model=msprime.SLiMv6MutationModel(next_id=next_id),
+        ),
+        mutation_type=0,
+)
+```
+Furthermore, the ``mutation_type`` argument to {func}`.add_mutation_metadata`
+replaces the previous ``type`` argument to {class}`msprime.SLiMMutationModel`.
+If you add (old-style) {class}`msprime.SLiMMutationModel` mutations to an annotated
+tree sequence, then *nothing will fail*, except that you'll get nonsensical
+SLiM mutation IDs (such as -2449958197306327040). This will throw a warning
+on {func}`.add_mutation_metadata`, however.
+
+3. Instead of looking up metadata for mutations in `mut.metadata`, you need
+to pull this information out of top-level metadata using the SLiM ID as a key.
+In brief, if `mut` is a mutation, then you should replace
+`mut.metadata["mutation_list"][j]`
+with `mut_metadata[mut.metadata["slim_ids"][j]]`,
+where `mut_metadata` is the output of {func}`.mutation_metadata`.
+For instance, where before you might have done:
+```python
+mut = ts.mutation(0)
+for k, md in zip(mut.derived_state.split(","), mut.metadata["mutation_list"]):
+    print(f"SLiM ID: {k}")
+    print(f"Metadata: {md}")
+```
+Now, you would do:
+```{code-cell}
+mut_metadata = pyslim.mutation_metadata(ts)
+mut = ts.mutation(0)
+for k in mut.metadata["slim_ids"]:
+    md = mut_metadata[k]
+    print(f"SLiM ID: {k}")
+    print(f"Metadata: {md}")
+```
+The function {func}`.mutation_metadata` pulls information out of
+`ts.metadata["SLiM_mutation_list"]`. It is useful for two reasons:
+first, it puts the information into a dict, so you can look up information
+using the SLiM mutation ID instead of searching through the list to find it.
+Second, it caches the information: every time you access
+`ts.metadata["SLiM_mutation_list"]`, it makes a new, decoded copy
+of the entire metadata dictionary. This can be **very slow** if it is done
+repeatedly.
+
+## 1.1
+
+Release 1.1 goes along with SLiM v5, which introduces multichromosome support.
+See [](sec_overview_vacant_nodes) for a description of the possibility of "vacant" nodes.
+
+1. Most importantly, if your tree sequence contains vacant nodes, these must
+be removed or (better) simply amended to be not marked as samples before certain
+operations, including computing statistics or recapitation.
+To do this, you might do
+```{code-cell}
+removed_vacant = pyslim.has_vacant_samples(ts)
+if removed_vacant:
+    ts = pyslim.remove_vacant(ts)
+```
+Note that this does not remove the vacant nodes from the tree sequence, it just
+removes them from the *sample*, which will make them invisible to most operations.
+However, if you use {func}`.recapitate` then this is unnecessary, because
+**{func}`.recapitate` does this for you.**
+
+2. If you *have* removed vacant samples and you wish to reload the tree seqeuence
+into SLiM, you'll have to reverse this, like
+```{code-cell}
+if removed_vacant:
+    ts = pyslim.restore_vacant(ts)
+```
+Note that `remove_vacant` and `restore_vacant` are harmless on tree sequences
+without vacant nodes; they're just wrapped in `if` statements to avoid the extra
+overhead if not needed.
+
+3. Replace `node.metadata["is_null"]` with `node.metadata["is_vacant"][0] > 0`.
+(Previously, `is_null` contained a boolean; now it contains a list of ints;
+for a single-chromosome simulation this will be a single int that will be
+either 0 (if vacant) or 1 (if not).
+
+4. Instead of checking `node.metadata["genome_type"]`, instead consult
+`ts.metadata["SLiM"]["this_chromosome"]["type"]`. (It was previously redundant
+to have a separate "genome type" entry for every node, anyhow.)
 
 ## 1.0
 
@@ -128,11 +244,12 @@ we'd have ``n.metadata`` as a ``NodeMetadata`` object,
 with attributes ``n.metadata.slim_id`` and ``n.metadata.is_null`` and ``n.metadata.genome_type``.
 However, with tskit 0.3,
 the capacity to deal with structured metadata
-was implemented in [tskit itself](tskit:sec_metadata),
+was implemented in {ref}`tskit itself <tskit:sec_metadata>`,
 and so pyslim shifted to using the tskit-native metadata tools.
 As a result, parsed metadata is provided as a dictionary instead of an object,
 so that now ``n.metadata`` would be a dict,
-with entries ``n.metadata["slim_id"]`` and ``n.metadata["is_null"]`` and ``n.metadata["genome_type"]``.
+with entries ``n.metadata["slim_id"]`` and ``n.metadata["is_vacant"]``
+(previously, ``n.metadata["is_null"]`` and ``n.metadata["genome_type"]``).
 Annotation should be done with tskit methods (e.g., ``packset_metadata``).
 
 .. note::
@@ -196,7 +313,7 @@ to contain the (encoded) metadata in the list ``metadata``.
 Now, this could be done as follows (where now ``metadata`` is a list of metadata dicts):
 
 ```{code-cell}
-metadata = [ {'slim_id': k, 'is_null': False, 'genome_type': 0}
+metadata = [ {'slim_id': k, 'is_vacant': [0]}
             for k in range(tables.nodes.num_rows) ]
 nms = tables.nodes.metadata_schema
 tables.nodes.packset_metadata(
@@ -217,5 +334,3 @@ a list of sexes of the individuals in the IndividualTable.
    However, the legacy code will disappear at some point in the future,
    so please migrate over scripts you intend to rely on.
 :::
-=======
->>>>>>> 483184a (deprecation start)

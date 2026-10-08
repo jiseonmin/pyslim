@@ -62,6 +62,7 @@ slim -s 23 vignette_space.slim
 Ok, now let's have a quick look at the output:
 
 ```{code-cell}
+import tskit
 slim_ts = tskit.load("spatial_sim.trees")
 print(f"The tree sequence has {slim_ts.num_trees} trees\n"
       f"on a genome of length {slim_ts.sequence_length},\n"
@@ -78,6 +79,7 @@ Let's have a look at how old those individuals are,
 by tabulating when they were born:
 
 ```{code-cell}
+import numpy as np
 individual_times = slim_ts.individuals_time
 for t in np.unique(individual_times):
     print(f"There are {np.sum(individual_times == t)} individuals from time {t}.")
@@ -96,13 +98,17 @@ and so individuals may live for more than one time step (even up to age 10, it s
 Let's check that all these individuals are alive at either (a) today or (b) 1000 time steps ago.
 
 ```{code-cell}
+slim_ts_md = slim_ts.metadata
 for t in [0, 1000]:
-  alive = pyslim.individuals_alive_at(slim_ts, t)
+  alive = pyslim.individuals_alive_at(slim_ts, t, ts_metadata=slim_ts_md)
   print(f"There were {len(alive)} individuals alive {t} time steps in the past.")
 ```
 
-And, 1378 + 1334 is 2712, the total number of individuals.
-So, this all checks out.
+We can add these numbers to get the total number of individuals, so this all checks out.
+On a separate note: here we used the optional ``ts_metadata`` argument
+to {func}`.individuals_alive_at`: see [](sec_metadata_using_top_level) for discussion:
+this is not important here because we only run the method twice, but this would be essential
+if we had a longer list of times.
 
 
 ## Recapitation and mutation
@@ -140,16 +146,18 @@ we would need to pass ``keep_input_roots=True`` to allow recapitation.
 
 ```{code-cell}
 recap_ts = pyslim.recapitate(slim_ts, recombination_rate=1e-8, ancestral_Ne=1000)
-ts = msprime.sim_mutations(
+ts = pyslim.add_mutation_metadata(
+       msprime.sim_mutations(
          recap_ts,
          rate=1e-8,
-         model=msprime.SLiMMutationModel(type=0),
+         model=msprime.SLiMv6MutationModel(),
          keep=True,
+       )
 )
 ts.dump("spatial_sim.recap.trees")
 
 print(f"The tree sequence now has {ts.num_trees} trees,\n"
-       " and {ts.num_mutations} mutations.")
+       f" and {ts.num_mutations} mutations.")
 ```
 See [](sec_tutorial_adding_neutral_mutations) for discussion of the options to
 {func}`msprime.sim_mutations`.
@@ -431,11 +439,11 @@ with open("spatial_sim_genotypes.vcf", "w") as vcffile:
 1. The distinction between "nodes" (i.e., genomes) and "individuals" can be confusing,
    as well as the idea of "samples".
    Please see the
-   [tskit documentation](tskit:sec_data_model)
+  {ref}`the tskit data model<tskit:sec_data_model>`
    for more explanation about these concepts.
 
 2. The general interface for computing statistics (explaining, for instance, the "indexes"
-   argument above) is described in [tskit documentation](tskit:sec_stats) also.
+  argument above) is described in {ref}`the tskit documentation<tskit:sec_stats>` also.
 
 
 ## What about simplification?

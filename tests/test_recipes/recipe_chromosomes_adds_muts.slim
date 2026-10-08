@@ -1,0 +1,146 @@
+// Keywords: multiple chromosomes, inheritance patterns, mating systems
+
+initialize() {
+    setSeed(23);
+    if (!exists("TREES_FILE")) defineGlobal("TREES_FILE", "out.trees"); 
+    if (!exists("PEDIGREE_FILE")) defineGlobal("PEDIGREE_FILE", "out.pedigree"); 
+	initializeSLiMOptions(keepPedigrees=T, dimensionality="xy", nucleotideBased=T);
+	initializeTreeSeq();
+	initializeSex();
+	initializeMutationTypeNuc("m1", 0.5, "f", 0.0);
+	initializeMutationType("m2", 0.5, "n", 0.0, 0.1);
+	initializeGenomicElementType("g1", m1, 1.0, mmJukesCantor(1e-4));
+	m1.convertToSubstitution = T;
+	
+	types = c("A", "X", "Y", "H", "Z", "W", "HF", "FL", "HM", "ML", "-Y");
+	symbols = c("A", "X", "Y", "H", "Z", "W", "HF", "FL", "HM", "ML", "nY");
+	ids = 1 + seqAlong(types);
+   length = 1e4;
+	
+	for (id in ids, symbol in symbols, type in types)
+	{
+		initializeChromosome(id, length, type, symbol);
+      initializeAncestralNucleotides(randomNucleotides(length));
+		initializeRecombinationRate(1e-5);
+		initializeGenomicElement(g1, 0, length-1);
+	}
+	defineGlobal("MD", Dictionary());
+}
+1 early() {
+	sim.addSubpop("p1", 10);
+}
+1: late() {
+    // add *non-nucleotide* mutations also
+    for (chrom in sim.chromosomes) {
+        inds = p1.individuals;
+        haps = inds.haplosomesForChromosomes(chrom, includeNulls=F);
+        if (length(haps) > 0) {
+          mutl = sample(haps, 1 + asInteger(length(haps)/2)).addNewDrawnMutation(m2, rdunif(10, 0, chrom.length-1));
+          muts = MD.getValue("mutations");
+          for (mut in mutl) {
+				nuc = mut.mutationType.nucleotideBased ? mut.nucleotide else "N";
+				m = Dictionary(
+					"chromosome_id", mut.chromosome.id,
+					"mutationType", mut.mutationType.id,
+					"nucleotide", nuc,
+					"position", mut.position,
+					"originTick", mut.originTick
+				);
+				muts.setValue(asString(mut.id), m);
+          }
+        }
+    }
+}
+
+
+// MUTATION/GENOTYPE INFO
+1 first() { // reference sequences
+	refseqs = Dictionary();
+	for (chrom in sim.chromosomes) {
+		refseqs.setValue("chr" + chrom.id, chrom.ancestralNucleotides());
+	}
+	MD.setValue("reference_sequence", refseqs);
+}
+
+1 first() { // mutation information
+	MD.setValue("mutations", Dictionary());
+}
+mutation() {
+	muts = MD.getValue("mutations");
+	nuc = mut.mutationType.nucleotideBased ? mut.nucleotide else "N";
+	m = Dictionary(
+		"chromosome_id", mut.chromosome.id,
+		"mutationType", mut.mutationType.id,
+		"nucleotide", nuc,
+		"position", mut.position,
+		"originTick", mut.originTick
+	);
+	muts.setValue(asString(mut.id), m);
+	return T;
+}
+10 late() {
+	subs = Dictionary();
+	for (mut in sim.substitutions) {
+		nuc = mut.mutationType.nucleotideBased ? mut.nucleotide else "N";
+		m = Dictionary(
+			"chromosome_id", mut.chromosome.id,
+			"mutationType", mut.mutationType.id,
+			"nucleotide", nuc,
+			"position", mut.position,
+			"fixationTick", mut.fixationTick
+		);
+		subs.setValue(asString(mut.id), m);
+	}
+	MD.setValue("substitutions", subs);
+}
+
+// OUTPUT/FINISH
+10 late() {
+    sim.treeSeqOutput(TREES_FILE, metadata=MD);
+    catn("Done.");
+    sim.simulationFinished();
+}
+
+// PEDIGREE OUTPUT
+1 first() {
+    writeFile(PEDIGREE_FILE,
+       paste(c("generation", "stage", "individual", "age", "parent1", "parent2"),
+             sep="\t"));
+}
+
+1: first() {
+    for (pop in sim.subpopulations) {
+        for (ind in pop.individuals) {
+            age = community.modelType == "nonWF" ? ind.age else -1;
+            writeFile(PEDIGREE_FILE,
+             paste(c(sim.cycle, community.cycleStage, ind.pedigreeID, age, ind.pedigreeParentIDs),
+                   sep='\t'),
+             append=T);
+        }
+    }
+}
+
+1: early() {
+    for (pop in sim.subpopulations) {
+        for (ind in pop.individuals) {
+            age = community.modelType == "nonWF" ? ind.age else -1;
+            writeFile(PEDIGREE_FILE,
+             paste(c(sim.cycle, community.cycleStage, ind.pedigreeID, age, ind.pedigreeParentIDs),
+                   sep='\t'),
+             append=T);
+        }
+    }
+}
+
+1: late() {
+    for (pop in sim.subpopulations) {
+        for (ind in pop.individuals) {
+            age = community.modelType == "nonWF" ? ind.age else -1;
+            writeFile(PEDIGREE_FILE,
+             paste(c(sim.cycle, community.cycleStage, ind.pedigreeID, age, ind.pedigreeParentIDs),
+                   sep='\t'),
+             append=T);
+        }
+    }
+}
+

@@ -26,27 +26,51 @@ ts = tskit.load("example_sim.trees")
 .. currentmodule:: pyslim
 ```
 
+(sec_time_units)=
+
 # Time units
 
 There are a number of subtle ways that time units can trip up the user;
 below are explanations of how to deal with most of these topics.
 At issue is the fact that tree sequences produced by SLiM
 have times in units of "ticks", rather than generations. 
-If we query such a tree sequence for its time units we see 
-its return value
+Sometimes these are the same, and sometimes they are not.
+
+SLiM sets the `time_unit` property of a tree sequence by default to "ticks":
 ```{code-cell}
 ts.time_units
 ```
+This "time unit" can be set with ``initializeTreeSeq(timeUnit="generations");``,
+but you should only do this if in fact you are sure that one tick = one generation
+(e.g., in a WF model),
+and SLiM does no checking whether this is true.
+This tutorial is not about this label, it is about matching up population genetics quantities
+(which are often in units of generations)
+with the ticks of SLiM time (which is more like calendar time).
 
-In general this mean it can be conceptually tricky to make sure that time units
+In general it can be conceptually tricky to make sure that time units
 are consistent across different stages of simulation.
 
-(Note: it *is* possible to set the time units to whatever you want,
-using the ``timeUnit`` parameter to ``initializeTreeSeq( )``,
-but this only affects this label in metadata (i.e., the output of
-``ts.time_units``, and does not actually change how times are recorded
-in the tree sequence.)
+(sec_time_units_warning)=
 
+## That warning from recapitate about time units
+
+If you recapitate a tree sequence then you've probably seen the warning
+```
+TimeUnitsMismatchWarning: The initial_state has time_units=ticks but time is measured
+in generations in msprime. This may lead to significant discrepancies between the timescales. 
+```
+This is a handy reminder to think about the issue, because it is important.
+However, if you're running a single-species WF simulation,
+then the time units *are* in generations (unless you're doing something very creative).
+If so, you can avoid this warning by setting the time units to "generations",
+using the ``timeUnit`` parameter to ``initializeTreeSeq( )``.
+However, this *only* affects the *label* in metadata (i.e., the output of
+``ts.time_units``, and does not actually change how times are recorded
+in the tree sequence, so please only do this if you are running a WF simulation
+(and, keep reading).
+
+(sec_time_units_mutation_rates)=
 
 ## Mutation rates with msprime
 
@@ -191,7 +215,7 @@ and then take the average across all individuals alive at a given time.
 (This is only one possible choice,
 and other choices are usually but not always equivalent,
 but a discussion of the options and distinctions
-would make this tutorial lengthy and confusing.
+would make this tutorial lengthy and confusing.)
 
 Here is a script that computes this.
 In the simulation, females' fecundity increases with their age,
@@ -215,7 +239,8 @@ so we expect generation time to go up at first.
 
 ```{code-cell}
 gts = tskit.load("generation_time.trees")
-gentimes = gts.metadata["SLiM"]["user_metadata"]["generation_times"]
+gts_metadata = gts.metadata
+gentimes = gts_metadata["SLiM"]["user_metadata"]["generation_times"]
 
 fig, ax = plt.subplots(figsize=(12, 6), dpi=300)
 ax.set_xlabel("tick")
@@ -229,15 +254,15 @@ If it does, then the mean sequence divergence calculated from the mutations intr
 should (approximately) match the mean length of branches in the tree sequence separating two samples
 multiplied by the expected number of mutations per unit time.
 (We get the mean branch length using the {meth}`ts.diversity <tskit.TreeSequence.diversity>` method with ``mode="branch"``;
-see the [tskit documentation](tskit:sec_stats) for details.)
+see the {ref}`tskit documentation <tskit:sec_stats>` for details.)
 This involves the generation time because "mutations per unit time" is equal to
-"mutations per generation" (here, the mutation rate per bp, {math}`10^{-8}`)
+"mutations per generation" (here, the mutation rate per bp, {math}`2 \times 10^{-8}`)
 divided by "time per generation" (i.e., mean generation time).
 
 
 ```{code-cell}
 slim_diversity = gts.diversity(mode = 'site')
-ts_diversity = gts.diversity(mode='branch') * 1e-8 / np.mean(gentimes)
+ts_diversity = gts.diversity(mode='branch') * 2e-8 / np.mean(gentimes)
 
 print(f"slim diversity: {slim_diversity}\n"
       f"scaled tree sequence diversity: {ts_diversity}\n"
@@ -255,7 +280,6 @@ Furthermore, since we already have mutations up until 100 time units ago,
 we need to put mutations on only previous to that time.
 
 ```{code-cell}
-gentimes = gts.metadata["SLiM"]["user_metadata"]["generation_times"]
 gt = np.mean(gentimes[-50:])
 recomb_rate = 1e-8 # per generation
 Ne = 1000 # generations
@@ -268,7 +292,7 @@ with warnings.catch_warnings(record=True) as w:
     mts = msprime.sim_mutations(
                rts,
                rate=mut_rate / gt,
-               model=msprime.SLiMMutationModel(type=0),
+               model=msprime.SLiMv6MutationModel(),
                keep=True,
                start_time=100,
     )
@@ -336,10 +360,10 @@ are always in sync; but in a WF model they are not (during *first* and *early*).
 The extra wrinkle this introduces is that the correspondence between "tskit time ago"
 and "SLiM time" depends on *which phase the tree sequence was recorded in*.
 
-When the tree sequence is written out, SLiM records the value of its current tick
-and the current stage,
+When the tree sequence is written out, SLiM records the value of its current tick,
+cycle, and stage,
 which can be found in the metadata: ``ts.metadata['SLiM']['tick']``,
-and ``ts.metadata['SLiM']['stage']``.
+``ts.metadata['SLiM']['cycle']``, and ``ts.metadata['SLiM']['stage']``.
 The "SLiM time" referred to by a ``time`` in the tree sequence
 (i.e., the value that would be reported by ``community.tick``
 within SLiM at the point in time thus referenced)

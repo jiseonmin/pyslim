@@ -21,7 +21,7 @@ initialize() {
 
 1: late() {
     // add *non-nucleotide* mutations also
-    sample(p1.genomes, 10).addNewDrawnMutation(m2, rdunif(10, 0, L-1));
+    sample(p1.haplosomes, 10).addNewDrawnMutation(m2, rdunif(10, 0, L-1));
 }
 
 10 late() {

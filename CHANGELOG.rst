@@ -1,6 +1,183 @@
-***************************
-UPCOMING
-***************************
+**********************
+[1.2.0b1] - 2026-09-26
+**********************
+
+This is a beta release for the upcoming 1.2.0,
+to support the beta release of SLiM v6.
+
+Major update release to support the release of SLiM v6.0. The main update to
+SLiM is support for traits, which accompanied a number of changes to metadata,
+particularly mutation metadata. For more information see
+https://tskit.dev/pyslim/docs/latest/previous_versions.html
+
+
+**Breaking changes**:
+
+- The release of SLiM 6.0, changes to metadata (see below) mean that accessing
+  top-level metadata (e.g., `ts.metadata["SLiM"]`) more than a few times in
+  a script will take a long time. Scripts that previously ran quickly may take a
+  prohibitively long. See the documentation for simple changes that fix the problem:
+  https://tskit.dev/pyslim/docs/latest/previous_versions.html
+
+- The SLiM tree sequence file version number has changed to 1.0. Use `pyslim.update`
+  to convert your tree sequence file to this format.
+
+- Metadata for SLiM's mutations are no longer stored along with the tskit mutations,
+  because mutation stacking allows each tskit mutation to be associated with more
+  than one SLiM mutation. Now, metadata for each unique mutation is stored in
+  top-level metadata, under `ts.metadata["SLiM_mutation_list"]`. The recommended
+  way to access this information is by obtaining the SLiM ID-to-metadata dict
+  returned by `pyslim.mutation_metadata(ts)`.
+
+- The SLiM mutation IDs represented by each tskit mutation should no longer be
+  read in from the `derived_state` property, but instead from the tskit mutation's
+  metadata. (However, SLiM still writes these out in text to the `derived_state`
+  entry as before.)
+
+- Previously, `msprime.sim_mutations` with the `msprime.SLiMMutationModel`
+  would record SLiM metadata along with each new mutation. However, msprime
+  does not modify top-level metadata, and so the method `add_mutation_metadata`
+  should be used after adding SLiM mutations.
+
+- This is a SLiM change, but top-level metadata is now encoded using the `json+struct`
+  codec now provided by tskit (so that the mutation metadata is not too large/slow).
+
+- The top-level and individual metadata schemas now depend on the number of traits
+  in the model. The methods `slim_tree_sequence_metadata_schema` and
+  `slim_individual_metadata_schema` can be used to produce correct schema.
+
+- Individual metadata no longer has a `flags` component; the one flag we did set here
+  (`pyslim.INDIVIDUAL_FLAG_MIGRATED`) is now recorded, as `pyslim.INDIVIDUAL_MIGRATED`,
+  in `individual.flags` (rather than `individual.metadata['flags']`).
+
+- The default sex ratio for populations is now 0.5 instead of 0.0.
+  (:issue:`339`, :user:`petrelharp`)
+
+**Bug fixes:**
+
+- `pyslim.annotate` now has a `num_chromosomes` argument. Previously it could not be
+  easily used to annotate multichromosome simulations with more than 8 chromosomes.
+  (It also now has a `num_traits` argument.)
+
+- In some previous versions, converting files produced by a yet-older version of SLiM
+  to the previously-current file version dropped some information from metadata:
+  nucleotide values for mutations, and pedigree parent IDs for individuals. This only
+  may have affected users using `pyslim.convert(ts)` in a previous version of pyslim
+  on a tree sequence `ts` with SLiM file version prior to 0.9.
+
+- Since verison 1.1, the value of `pyslim.INDIVIDUAL_FLAG_MIGRATED` has been 2,
+  when in fact it should have been 1, so code using this flag to detect
+  migrants would have been wrong (and should have found no migrants, ever).
+  (Also, this flag is now deprecated; see above.)
+
+**New features**:
+
+- SLiM now includes in metadata information about the effects of mutations on
+  quantitative traits, the values of traits for individuals, and the values of
+  various "tags" defined in SLiM.
+
+- `default_slim_metadata` can now take additional arguments to modify the returned
+  values.
+
+********************
+[1.1.1] - 2026-03-06
+********************
+
+Maintenance release.
+
+- Improved performance on remove_vacant (:issue:`393`)
+- Require Python >= 3.11
+
+********************
+[1.1.0] - 2025-08-16
+********************
+
+Major update release to support the release of SLiM v5.0. The main update here
+is support for multiple chromosomes, which entailed a change to the
+node table metadata that records "vacancy" for chromosomes not diploid
+in a given individual. Changes are minimal if you're simulating a single,
+diploid chromosome; for more information see
+https://tskit.dev/pyslim/docs/latest/previous_versions.html
+
+**Breaking changes**:
+
+- SLiM tree sequence file version number has changed to 0.9.
+
+- This is a change in SLiM, really, but top-level SLiM metadata now requires
+  a `"this_chromosome"` entry.
+
+- Similarly, node metadata no longer has `genome_type` or `is_null`; instead
+  they have `is_vacant`, and the chromosome type is in top-level metadata,
+  under `metadata['SLiM']['this_chromosome']`.
+
+- `pyslim.slim_metadata_schemas["node"]` has an appropriate metadata schema
+    for a single-chromosome simulation (not a breaking change), but users
+    wishing to set up a multi-chromosome simulation should use instead
+    `pyslim.slim_node_metadata_schema` (which has the appropriate value in
+    `["properties"]["is_vacant"]["length"]`)
+    (:user:`petrelharp`, :pr:`367`).
+
+- Previously, `pyslim.annotate` would leave existing node and individual
+    metadata, even if this metadata came from a different schema. This
+    could silently create garbage metadata. Now, `annotate` removes
+    any existing metadata, and warns if this occurs
+    (:user:`petrelharp`, :pr:`390`).
+
+**Notable changes**:
+
+- `pyslim.individual_parents` and `pyslim.has_individual_parents` are no
+    longer needed, as this information can be more reliably extracted from
+    the `parents` column/attribute of individuals, so they are now deprecated
+    and will be removed in the future.
+
+**New features**:
+
+- `pyslim.set_slim_state` will adjust times and "alive" flags so
+    that when the tree sequence is loaded into SLiM it will have
+    a specified set of individuals alive at a particular time.
+    (:user:`petrelharp`, :pr:`384`)
+
+- Functions `pyslim.node_is_vacant` and `pyslim.has_vacant_samples`
+    test for vacancy in the current chromosome.
+    (:user:`petrelharp`, :pr:`367`)
+
+- `pyslim.remove_vacant` and `pyslim.restore_vacant`, respectively,
+    remove and restore vacant samples nodes, necessary for recapitation
+    and other operations. Also, corresponding `pyslim.remove_vacant_tables`
+    and `pyslim.restore_vacant_tables`.
+    (:user:`petrelharp`, :pr:`367`)
+
+- `pyslim.recapitate` by default removes the sample flags on vacant nodes,
+    but this behavior is controlled by an argument, `keep_vacant`.
+    (:user:`petrelharp`, :pr:`367`)
+
+- `pyslim.set_metadata_schemas` now includes a `num_chromosomes` argument
+    (:user:`petrelharp`, :pr:`367`)
+
+
+**Bugfixes**:
+
+- Recapitation on tree sequences with null genomes would attempt to simulate
+    the history of those null genomes; this would in all but exceptional cases
+    fail with an error ("not all roots are at the time expected"). Now, null
+    genomes are "vacant" (see above) and `recapitate` removes their
+    sample flags before recapitating (and optionally puts them back)
+    as described in `pyslim.remove_vacant` (:user:`petrelharp`, :pr:`367`).
+
+- Previously, recapitation would require the roots of all trees to be
+    at the same time (roughly) as the 'tick' stored in the top-level metadata;
+    however, this would not be the case if the first population was added
+    later than the first tick. The requirement has therefore been removed.
+    (:user:`petrelharp`, :pr:`382`)
+
+- The `generated_nucleotides` method now sets the `nucleotide_based` entry
+    in top-level metadata to True. (:user:`petrelharp`, :pr:`385`)
+
+- The individual flags `INDIVIDUAL_ALIVE`, `INDIVIDUAL_REMEMBERED`,
+    and `INDIVIDUAL_RETAINED` were signed integers, but the flags in the
+    individual table they apply to are unsigned, so using the
+    bitwise negation operator `~` could result in an error. Now,
+    they are np.uint32 values. (:user:`petrelharp`, :pr:`378`)
 
 
 ***************************
@@ -103,9 +280,11 @@ Please don't use this one.
 
 - Methods for getting time, population, and location information about individuals
   are now in tskit:
+
     * `SlimTreeSequence.individual_times` is now `TreeSequence.individuals_time()`
     * `SlimTreeSequence.individual_populations` is now `TreeSequence.individuals_population()`
     * `SlimTreeSequence.individual_locations` is now `TreeSequence.individuals_location()`
+
   However, this will be invisible to the user. In each case note the the
   location of the "s" has moved (to "individual*s* time" instead of "individual
   time*s*"), but the original version remains an undocumented alias.

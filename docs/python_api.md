@@ -18,7 +18,7 @@ from IPython.display import SVG
 import numpy as np
 
 ts = tskit.load("example_sim.trees")
-tables = ts.tables
+tables = ts.dump_tables()
 ```
 
 ```{eval-rst}
@@ -37,18 +37,27 @@ Here is a quick reference to some of the methods:
 ```{eval-rst}
 .. autosummary::
 
-  recapitate
+  add_mutation_metadata
+  add_mutation_metadata_tables
   annotate
-  individuals_alive_at
+  convert_alleles
+  default_slim_metadata
+  generate_nucleotides
+  has_vacant_samples
   individual_ages
   individual_ages_at
-  individual_parents
-  has_individual_parents
-  slim_time
-  convert_alleles
-  generate_nucleotides
+  individuals_alive_at
+  mutation_metadata
+  next_slim_mutation_id
+  mutation_at
+  nucleotide_at
+  nodes_vacant
   population_size
-  default_slim_metadata
+  recapitate
+  remove_vacant
+  restore_vacant
+  set_slim_state
+  slim_time
   update
 ```
 
@@ -72,6 +81,23 @@ Here is a quick reference to some of the methods:
 
 ```{eval-rst}
 .. autofunction::  update
+```
+
+```{eval-rst}
+.. autofunction::  remove_vacant
+```
+
+```{eval-rst}
+.. autofunction::  restore_vacant
+```
+
+```{eval-rst}
+.. autofunction::  set_slim_state
+```
+
+```{eval-rst}
+.. autofunction::  add_mutation_metadata
+.. autofunction::  add_mutation_metadata_tables
 ```
 
 ## Summarizing tree sequences
@@ -105,6 +131,10 @@ Additionally, ``pyslim`` contains the following methods:
 ## Utilities
 
 ```{eval-rst}
+.. autofunction::  mutation_metadata
+```
+
+```{eval-rst}
 .. autofunction::  slim_time
 ```
 
@@ -112,17 +142,35 @@ Additionally, ``pyslim`` contains the following methods:
 .. autofunction::  next_slim_mutation_id
 ```
 
+```{eval-rst}
+.. autofunction::  has_vacant_samples
+```
+
+```{eval-rst}
+.. autofunction::  nodes_vacant
+```
+
+```{eval-rst}
+.. autofunction::  node_is_vacant
+```
+
+```{eval-rst}
+.. autofunction::  is_current_version
+```
+
+```{eval-rst}
+.. autofunction::  nucleotide_at
+```
+
+```{eval-rst}
+.. autofunction::  mutation_at
+```
+
 
 ## Metadata
 
-SLiM-specific metadata is made visible to the user by ``.metadata`` properties.
-For instance:
-```{code-cell}
-ts.node(4).metadata
-```
-shows that the fifth node in the tree sequence was given pedigree ID ``982740`` by SLiM,
-is *not* a null genome, and has ``genome_type`` zero, which corresponds to an autosome 
-(see below).
+SLiM-specific metadata is made visible to the user by ``.metadata`` properties,
+described in [](sec_metadata).
 
 
 ### Annotation
@@ -130,13 +178,13 @@ is *not* a null genome, and has ``genome_type`` zero, which corresponds to an au
 These two functions will add default SLiM metadata to a tree sequence (or the
 underlying tables), which can then be modified and loaded into SLiM.
 
-:::{eval-rst}
+```{eval-rst}
 .. autofunction:: pyslim.annotate
-:::
+```
 
-:::{eval-rst}
+```{eval-rst}
 .. autofunction:: pyslim.annotate_tables
-:::
+```
 
 
 
@@ -144,44 +192,35 @@ underlying tables), which can then be modified and loaded into SLiM.
 
 ## Constants and flags
 
-
-:::{eval-rst}
+```{eval-rst}
 .. autodata:: NUCLEOTIDES
-:::
+```
 
-These flags are the possible values for ``node.metadata["genome_type"]``:
+This is a flag used in `node.flags` (see {func}`.remove_vacant`):
 
-:::{eval-rst}
-.. autodata:: GENOME_TYPE_AUTOSOME
-
-.. autodata:: GENOME_TYPE_X
-
-.. autodata:: GENOME_TYPE_Y
-:::
+```{eval-rst}
+.. autodata:: NODE_IS_VACANT_SAMPLE
+```
 
 
-These flags are the possible values for ``individual.metadata["sex"]``:
+These are the possible values for ``individual.metadata["sex"]``:
 
-:::{eval-rst}
+```{eval-rst}
 .. autodata:: INDIVIDUAL_TYPE_HERMAPHRODITE
 
 .. autodata:: INDIVIDUAL_TYPE_FEMALE
 
 .. autodata:: INDIVIDUAL_TYPE_MALE
-:::
-
-This is a flag used in ``individual.metadata["flags"]``:
-:::{eval-rst}
-.. data:: INDIVIDUAL_FLAG_MIGRATED == 0x01
-:::
+```
 
 Finally, these are used in ``individual.flags``:
 
-:::{eval-rst}
+```{eval-rst}
 .. autodata:: INDIVIDUAL_ALIVE
 
 .. autodata:: INDIVIDUAL_REMEMBERED
 
 .. autodata:: INDIVIDUAL_RETAINED
-:::
 
+.. autodata:: INDIVIDUAL_MIGRATED
+```
